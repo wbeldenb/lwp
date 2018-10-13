@@ -17,6 +17,7 @@ scheduler *ROUND_ROBIN = NULL;
 
 /*---------------------------------------------------------------------------*/
 /*queue functions, maybe move to different file?*/
+
 QNode newNode(thread new) {
     QNode temp = (struct QNode*)malloc(sizeof(struct QNode)); 
     temp->t = new; 
@@ -95,7 +96,7 @@ void remove(thread victim) {
  
 /* select a thread to schedule*/ 
 thread next(void) {
-
+    return ROUND_ROBIN->tq->head->t;
 }
 
 /*create thread queue*/
@@ -110,6 +111,34 @@ void createQueue(threadQueue tq) {
 
 /*---------------------------------------------------------------------------*/
 /*thread functions*/
+
+tid_t lwp_create(lwpfun,void *,size_t) {
+
+}
+
+void  lwp_exit(void) {
+
+}
+
+tid_t lwp_gettid(void) {
+
+}
+
+void  lwp_yield(void) {
+
+}
+
+void  lwp_start(void) {
+
+}
+
+void  lwp_stop(void) {
+
+}
+
+void  lwp_set_scheduler(scheduler fun) {
+
+}
 
 /*set ROUND_ROBIN*/
 void  lwp_set_scheduler(scheduler fun) {
