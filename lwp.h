@@ -53,6 +53,23 @@ typedef struct threadinfo_st {
 
 typedef void (*lwpfun)(void *); /* type for lwp function */
 
+// A two way linked list node to contain threads
+typedef struct QNode { 
+    thread t; 
+    struct QNode *next;
+    struct QNode *prev; 
+} *QNode; 
+  
+/* A queue for threads, front stores the front node of linked list
+   and rear stores the last node of linked list */
+typedef struct threadQueue { 
+    QNode front, rear;
+
+    QNode (*newNode)(thread new);
+    void (*enQueue)(thread new);
+    void (*deQueue)(thread victim);     
+} *threadQueue;
+
 /* Tuple that describes a scheduler */
 typedef struct scheduler {
   void   (*init)(void);            /* initialize any structures     */
@@ -60,6 +77,8 @@ typedef struct scheduler {
   void   (*admit)(thread new);     /* add a thread to the pool      */
   void   (*remove)(thread victim); /* remove a thread from the pool */
   thread (*next)(void);            /* select a thread to schedule   */
+  threadQueue (*createQueue)(void);
+  threadQueue tq;
 } *scheduler;
 
 /* lwp functions */
