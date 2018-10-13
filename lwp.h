@@ -60,14 +60,14 @@ typedef struct QNode {
     struct QNode *prev; 
 } *QNode; 
   
-/* A queue for threads, front stores the front node of linked list
-   and rear stores the last node of linked list */
+/* A queue for threads, head stores the first node of linked list
+   and tail stores the last of linked list */
 typedef struct threadQueue { 
-    QNode front, rear;
+    QNode head, tail;
 
     QNode (*newNode)(thread new);
-    void (*enQueue)(thread new);
-    void (*deQueue)(thread victim);     
+    void (*enQueue)(threadQueue tq, thread new);
+    void (*deQueue)(threadQueue tq, thread victim);     
 } *threadQueue;
 
 /* Tuple that describes a scheduler */
@@ -77,7 +77,7 @@ typedef struct scheduler {
   void   (*admit)(thread new);     /* add a thread to the pool      */
   void   (*remove)(thread victim); /* remove a thread from the pool */
   thread (*next)(void);            /* select a thread to schedule   */
-  threadQueue (*createQueue)(void);
+  void (*createQueue)(threadQueue tq);
   threadQueue tq;
 } *scheduler;
 

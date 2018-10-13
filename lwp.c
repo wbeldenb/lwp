@@ -9,21 +9,63 @@
 
 #include "lwp.h"
 
+/*---------------------------------------------------------------------------*/
+/*GLOBAL's Space*/
+
 /*global scheduler*/
 scheduler *ROUND_ROBIN = NULL;
 
 /*---------------------------------------------------------------------------*/
 /*queue functions, maybe move to different file?*/
 QNode newNode(thread new) {
-
+    QNode temp = (struct QNode*)malloc(sizeof(struct QNode)); 
+    temp->t = new; 
+    temp->next = NULL; 
+    temp->prev = NULL;
+    return temp;
 }
 
-void enQueue(thread new) {
-
+void enQueue(threadQueue tq, thread new) {
+    //Create a new Qnode 
+    QNode *temp = newNode(new); 
+  
+    //If queue is empty, then new node is both the head and tail
+    if (tq->tail == NULL)
+       tq->head = tq->tail = temp;
+  
+    //Add the new node at the end of queue and change tail 
+    else {
+        tq->tail->next = temp; 
+        tq->tail = temp; 
+    }
 }
 
-void deQueue(thread victim) {
+void deQueue(threadQueue tq, thread victim) {
+    if (tq->head == NULL)
+        return;
 
+    QNode temp = threadQueue->head;
+
+    /*go through queue until match is found*/
+    while (temp != NULL) {
+        if (temp->t->tid == victim->tid) {
+            if (temp->prev)
+                temp->prev->next = temp->next;
+
+            if (temp->next)
+                temp->next->prev = temp->prev;
+
+            if (temp == tq->head)
+                tq->head == temp->next;
+
+            if(temp == tq->tail)
+                tq->tail = temp->prev;
+
+            break;
+        }
+
+        temp = temp->next;
+    }
 } 
 
 /*---------------------------------------------------------------------------*/
@@ -31,7 +73,7 @@ void deQueue(thread victim) {
 
 /*initialize any structs*/
 void init(void) {
-
+    createQueue(ROUND_ROBIN->tq);
 }
 
 /*tear down any structures*/
@@ -57,8 +99,13 @@ thread next(void) {
 }
 
 /*create thread queue*/
-threadQueue createQueue(void) {
+void createQueue(threadQueue tq) {
+    *tq = (struct threadQueue*)malloc(sizeof(struct threadQueue)); 
+    tq->front = tq->rear = NULL;
 
+    tq->newNode = newNode;
+    tq->enQueue = enQueue;
+    tq->deQueue = deQueue;   
 }
 
 /*---------------------------------------------------------------------------*/
