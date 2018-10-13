@@ -13,7 +13,7 @@
 /*GLOBAL's Space*/
 
 /*global scheduler*/
-scheduler *ROUND_ROBIN = NULL;
+scheduler *GLOBAL_SCHEDULAR = NULL;
 
 /*---------------------------------------------------------------------------*/
 /*queue functions, maybe move to different file?*/
@@ -70,37 +70,39 @@ void deQueue(threadQueue tq, thread victim) {
 } 
 
 /*---------------------------------------------------------------------------*/
-/*scheduler functions, maybe move to different file?*/
+/*RR scheduler functions, maybe move to different file?*/
 
 /*initialize any structs*/
-void init(void) {
-    createQueue(ROUND_ROBIN->tq);
+void init_RR(void) {
+    GLOBAL_SCHEDULAR->createQueue(GLOBAL_SCHEDULAR->tq);
 }
 
 /*tear down any structures*/
-void shutdown(void) {
-
+void shutdown_RR(void) {
+    free(GLOBAL_SCHEDULAR->tq);
+    free(GLOBAL_SCHEDULAR);
 }
 
-
 /* add a thread to the pool*/
-void admit (thread new) {
-
+void admit_RR(thread new) {
+    threadQueue temp = GLOBAL_SCHEDULAR->tq;
+    temp->enQueue(temp, new);
 }
 
 
 /* remove a thread from the pool */
-void remove(thread victim) {
-
+void remove_RR(thread victim) {
+    threadQueue temp = GLOBAL_SCHEDULAR->tq;
+    temp->deQueue(temp, victim);
 }
  
 /* select a thread to schedule*/ 
-thread next(void) {
-    return ROUND_ROBIN->tq->head->t;
+thread next_RR(void) {
+    return GLOBAL_SCHEDULAR->tq->head->t;
 }
 
 /*create thread queue*/
-void createQueue(threadQueue tq) {
+void createQueue_RR(threadQueue tq) {
     *tq = (struct threadQueue*)malloc(sizeof(struct threadQueue)); 
     tq->front = tq->rear = NULL;
 
@@ -112,8 +114,21 @@ void createQueue(threadQueue tq) {
 /*---------------------------------------------------------------------------*/
 /*thread functions*/
 
-tid_t lwp_create(lwpfun,void *,size_t) {
+void set_init_schedular_RR() {
+    GLOBAL_SCHEDULAR = malloc(sizeof(struct scheduler));
 
+    GLOBAL_SCHEDULAR->init = init_RR;
+    GLOBAL_SCHEDULAR->shutdown = shutdown_RR;
+    GLOBAL_SCHEDULAR->admit = admit_RR;
+    GLOBAL_SCHEDULAR->remove = remove_RR;
+    GLOBAL_SCHEDULAR->next = next_RR;
+    GLOBAL_SCHEDULAR->createQueue = createQueue_RR;
+
+    GLOBAL_SCHEDULAR->init_RR();
+}
+
+tid_t lwp_create(lwpfun, void *, size_t) {
+    set_init_schedular_RR();
 }
 
 void  lwp_exit(void) {
@@ -136,28 +151,17 @@ void  lwp_stop(void) {
 
 }
 
-void  lwp_set_scheduler(scheduler fun) {
-
-}
-
 /*set ROUND_ROBIN*/
 void  lwp_set_scheduler(scheduler fun) {
-    ROUND_ROBIN = malloc(sizeof(struct scheduler));
+    /*a lot more to this, see spec*/
 
-    ROUND_ROBIN->init = init;
-    ROUND_ROBIN->shutdown = shutdown;
-    ROUND_ROBIN->admit = admit;
-    ROUND_ROBIN->remove = remove;
-    ROUND_ROBIN->next = next;
-    ROUND_ROBIN->createQueue = createQueue;
-
-    ROUND_ROBIN->init();
+    GLOBAL_SCHEDULAR = fun;
 }
 
 /*return active scheduler or print error if not set*/
 scheduler lwp_get_scheduler(void) {
-    if (ROUND_ROBIN)
-        return ROUND_ROBIN;
+    if (GLOBAL_SCHEDULAR)
+        return GLOBAL_SCHEDULAR;
 
     else {
         printf(stderr, "No scheduler set. Exiting...\n");
