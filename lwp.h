@@ -67,8 +67,8 @@ typedef struct threadQueue {
     QNode head, tail;
 
     QNode (*newNode)(thread new);
-    void (*enQueue)(threadQueue tq, thread new);
-    void (*deQueue)(threadQueue tq, thread victim);     
+    void (*enQueue)(struct threadQueue *tq, thread new);
+    void (*deQueue)(struct threadQueue *tq, thread victim);     
 } *threadQueue;
 
 /* Tuple that describes a scheduler */

@@ -7,6 +7,7 @@
     *Notes: primary files for LWP implementation
 */
 
+#include <stdio.h>
 #include "lwp.h"
 
 /*---------------------------------------------------------------------------*/
@@ -15,13 +16,13 @@ unsigned int nexttid = 0;
 thread activeThread = NULL;
 
 /*global scheduler*/
-scheduler *GLOBAL_SCHEDULAR = NULL;
+scheduler GLOBAL_SCHEDULAR = NULL;
 
 /*---------------------------------------------------------------------------*/
 /*queue functions, maybe move to different file?*/
 
 QNode newNode(thread new) {
-    QNode temp = (struct QNode*)malloc(sizeof(struct QNode)); 
+    QNode temp = (QNode)malloc(sizeof(QNode)); 
     temp->t = new; 
     temp->next = NULL; 
     temp->prev = NULL;
@@ -30,7 +31,7 @@ QNode newNode(thread new) {
 
 void enQueue(threadQueue tq, thread new) {
     //Create a new Qnode 
-    QNode *temp = newNode(new); 
+    QNode temp = newNode(new); 
   
     //If queue is empty, then new node is both the head and tail
     if (tq->tail == NULL)
@@ -47,7 +48,7 @@ void deQueue(threadQueue tq, thread victim) {
     if (tq->head == NULL)
         return;
 
-    QNode temp = threadQueue->head;
+    QNode temp = tq->head;
 
     /*go through queue until match is found*/
     while (temp != NULL) {
@@ -105,8 +106,8 @@ thread next_RR(void) {
 
 /*create thread queue*/
 void createQueue_RR(threadQueue tq) {
-    *tq = (struct threadQueue*)malloc(sizeof(struct threadQueue)); 
-    tq->front = tq->rear = NULL;
+    tq = (threadQueue)malloc(sizeof(threadQueue)); 
+    tq->head = tq->tail = NULL;
 
     tq->newNode = newNode;
     tq->enQueue = enQueue;
@@ -126,13 +127,14 @@ void set_init_schedular_RR() {
     GLOBAL_SCHEDULAR->next = next_RR;
     GLOBAL_SCHEDULAR->createQueue = createQueue_RR;
 
-    GLOBAL_SCHEDULAR->init_RR();
+    GLOBAL_SCHEDULAR->init();
 }
 
 tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
-    void *stack;
+    void *stack = NULL;
     thread newThread;
     set_init_schedular_RR();
+    
     /* allocate a stack for the LWP */
     if ((stack = malloc(stackSize * __WORDSIZE)) == NULL){
         perror("lwp_create");
@@ -189,7 +191,7 @@ void  lwp_stop(void) {
 
 }
 
-/*set ROUND_ROBIN*/
+/*set new schedular*/
 void  lwp_set_scheduler(scheduler fun) {
     /*a lot more to this, see spec*/
 
@@ -202,7 +204,7 @@ scheduler lwp_get_scheduler(void) {
         return GLOBAL_SCHEDULAR;
 
     else {
-        printf(stderr, "No scheduler set. Exiting...\n");
+        fprintf(stderr, "No scheduler set. Exiting...\n");
         return NULL;
     }
 }
