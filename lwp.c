@@ -11,6 +11,7 @@
 
 /*---------------------------------------------------------------------------*/
 /*GLOBAL's Space*/
+unsigned int nexttid = 0;
 
 /*global scheduler*/
 scheduler *GLOBAL_SCHEDULAR = NULL;
@@ -96,7 +97,7 @@ void remove_RR(thread victim) {
     temp->deQueue(temp, victim);
 }
  
-/* select a thread to schedule*/ 
+/* select a thread to schedule */ 
 thread next_RR(void) {
     return GLOBAL_SCHEDULAR->tq->head->t;
 }
@@ -112,7 +113,7 @@ void createQueue_RR(threadQueue tq) {
 }
 
 /*---------------------------------------------------------------------------*/
-/*thread functions*/
+/* thread functions */
 
 void set_init_schedular_RR() {
     GLOBAL_SCHEDULAR = malloc(sizeof(struct scheduler));
@@ -127,12 +128,43 @@ void set_init_schedular_RR() {
     GLOBAL_SCHEDULAR->init_RR();
 }
 
-tid_t lwp_create(lwpfun, void *, size_t) {
+tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
+    void *stack;
+    thread newThread;
     set_init_schedular_RR();
+    /* allocate a stack for the LWP */
+    if ((stack = malloc(stackSize * __WORDSIZE)) == NULL){
+        perror("lwp_create");
+        exit(EXIT_FAILURE);
+    }
+
+    uintptr_t sp = stack;
+    sp += stackSize * __WORDSIZE;
+    uintptr_t bsp = sp;
+    /* create a stack frame for the LWP */
+    stack[sp] = argument;
+    sp += sizeof(void *);
+    stack[sp] = function;
+
+
+    /* store the thread in a struct and put it in the scheduler */
+    if (newThread = malloc(sizeof(struct threadinfo_st)) == NULL){
+        perror("lwp_create");
+        exit(EXIT_FAILURE);
+    }
+    newThread->tid = nexttid;
+    nexttid++;
+    newThread->stack = bsp;
+    newThread->stacksize = stackSize;
+    /* lib_one, lib_two, sched_one, sched_two are undefined and can be used later */
+    admit(newThread);
+
+    return newThread->tid;
 }
 
 void  lwp_exit(void) {
 
+/* TODO: decrement nexttid */
 }
 
 tid_t lwp_gettid(void) {
