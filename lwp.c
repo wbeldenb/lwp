@@ -166,7 +166,6 @@ tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
 }
 
 void  lwp_exit(void) {
-
 /* TODO: decrement nexttid */
 }
 
@@ -179,7 +178,7 @@ tid_t lwp_gettid(void) {
 }
 
 void  lwp_yield(void) {
-
+    
 }
 
 void  lwp_start(void) {
