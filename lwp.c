@@ -12,6 +12,7 @@
 /*---------------------------------------------------------------------------*/
 /*GLOBAL's Space*/
 unsigned int nexttid = 0;
+thread activeThread = NULL;
 
 /*global scheduler*/
 scheduler *GLOBAL_SCHEDULAR = NULL;
@@ -142,6 +143,8 @@ tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
     sp += stackSize * __WORDSIZE;
     uintptr_t bsp = sp;
     /* create a stack frame for the LWP */
+    /* putting the arguments on first, not sure if that's correct or not */
+    /* I reckon that lwp_start is just gonna yank this stuff off anyways so who cares */
     stack[sp] = argument;
     sp += sizeof(void *);
     stack[sp] = function;
@@ -168,7 +171,11 @@ void  lwp_exit(void) {
 }
 
 tid_t lwp_gettid(void) {
-
+    if (activeThread == NULL){
+        return NULL;
+    } else {
+        return activeThread->tid;
+    }
 }
 
 void  lwp_yield(void) {
