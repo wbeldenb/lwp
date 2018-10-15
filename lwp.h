@@ -80,7 +80,7 @@ typedef struct scheduler {
   thread (*next)(void);            /* select a thread to schedule   */
 } *scheduler;
 
-scheduler set_init_schedular_RR();
+scheduler set_init_scheduler_RR();
 
 /* lwp functions */
 tid_t lwp_create(lwpfun,void *,size_t);

@@ -19,7 +19,7 @@ thread activeThread = NULL;
 threadQueue GLOBAL_THREAD_QUEUE = NULL;
 
 /*global scheduler*/
-scheduler GLOBAL_SCHEDULAR = NULL;
+scheduler GLOBAL_SCHEDULER = NULL;
 
 /*---------------------------------------------------------------------------*/
 /*queue functions, maybe move to different file?*/
@@ -84,7 +84,7 @@ void init_RR(void) {
 
 /*tear down any structures*/
 void shutdown_RR(void) {
-    free(GLOBAL_SCHEDULAR);
+    free(GLOBAL_SCHEDULER);
 }
 
 /* add a thread to the pool*/
@@ -123,25 +123,25 @@ void createQueue_RR(threadQueue tq) {
 /*---------------------------------------------------------------------------*/
 /* thread functions */
 
-scheduler set_init_schedular_RR() {
-	scheduler newSchedular;
-    newSchedular = malloc(sizeof(struct scheduler));
+scheduler set_init_scheduler_RR() {
+	scheduler newScheduler;
+    newScheduler = malloc(sizeof(struct scheduler));
 
-    newSchedular->init = init_RR;
-    newSchedular->shutdown = shutdown_RR;
-    newSchedular->admit = admit_RR;
-    newSchedular->remove = remove_RR;
-    newSchedular->next = next_RR;
+    newScheduler->init = init_RR;
+    newScheduler->shutdown = shutdown_RR;
+    newScheduler->admit = admit_RR;
+    newScheduler->remove = remove_RR;
+    newScheduler->next = next_RR;
 
-    newSchedular->init();
+    newScheduler->init();
 
-    return newSchedular;
+    return newScheduler;
 }
 
 tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
     void *stack = NULL;
     thread newThread;
-    GLOBAL_SCHEDULAR = set_init_schedular_RR();
+    GLOBAL_SCHEDULER = set_init_scheduler_RR();
     createQueue(GLOBAL_THREAD_QUEUE);
 
     /* allocate a stack for the LWP */
@@ -155,7 +155,7 @@ tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
     uintptr_t bsp = sp;
     /* create a stack frame for the LWP */
     /* putting the arguments on first, not sure if that's correct or not */
-    /* I reckon that lwp_start is just gonna yank this stuff off anyways so who cares */
+    /* I reckon that lwp_start is just gonna yank this stuff off anyways */
     stack[sp] = argument;
     sp += sizeof(void *);
     stack[sp] = function;
@@ -171,7 +171,7 @@ tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
     nexttid++;
     newThread->stack = bsp;
     newThread->stacksize = stackSize;
-    /* lib_one, lib_two, sched_one, sched_two are undefined and can be used later */
+    /* lib_one, lib_two, sched_one, sched_two are undefined, can be used later*/
     admit(newThread);
 
     return newThread->tid;
@@ -179,7 +179,7 @@ tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
 
 void  lwp_exit(void) {
 /* TODO: decrement nexttid */
-	if(!GLOBAL_SCHEDULAR->next())
+	if(!GLOBAL_SCHEDULER->next())
 		lwp_stop();
 }
 
@@ -195,7 +195,7 @@ tid_t lwp_gettid(void) {
   Saves the current LWP’s context, picks the next one, restores
   that thread’s context, and returns.*/
 void  lwp_yield(void) {
-	if(!GLOBAL_SCHEDULAR->next())
+	if(!GLOBAL_SCHEDULER->next())
 		lwp_stop();
 
 	/*find the active thread's saved state in scheduler,
@@ -204,12 +204,12 @@ void  lwp_yield(void) {
 	swap_rfiles(&activeThread->state, &temp->state);
 
 	/*swap registers of next thread with active thread*/
-	activeThread = GLOBAL_SCHEDULAR->next();  
-	swap_rfiles(&GLOBAL_SCHEDULAR->next()->state, &activeThread->state);
+	activeThread = GLOBAL_SCHEDULER->next();  
+	swap_rfiles(&GLOBAL_SCHEDULER->next()->state, &activeThread->state);
 }
 
 void  lwp_start(void) {
-	if(!GLOBAL_SCHEDULAR->next())
+	if(!GLOBAL_SCHEDULER->next())
 		lwp_stop();
 }
 
@@ -217,36 +217,38 @@ void  lwp_stop(void) {
 
 }
 
-/*set new schedular*/
+/*set new scheduler*/
 void  lwp_set_scheduler(scheduler fun) {
-	scheduler newSchedular;
+	scheduler newScheduler;
 
+	/*if passed NULL, set default RR scheduler*/
 	if (!fun)
-		newSchedular = set_init_schedular_RR();
+		newScheduler = set_init_scheduler_RR();
 
+	/*otherwise setup new scheduler*/
 	else {
-		newSchedular = fun;
+		newScheduler = fun;
 		fun->init();
 	}
 
     QNode temp = GLOBAL_THREAD_QUEUE->head;
 
-    /*move all thread from current schedular to new*/
+    /*move all thread from current scheduler to new*/
     while (temp) {
-    	GLOBAL_SCHEDULAR->remove(temp->t);
-    	newSchedular->admit(temp->t);
+    	GLOBAL_SCHEDULER->remove(temp->t);
+    	newScheduler->admit(temp->t);
     	temp = temp->next;
     }
 
-    GLOBAL_SCHEDULAR->shutdown();
+    GLOBAL_SCHEDULER->shutdown();
 
-    GLOBAL_SCHEDULAR = newSchedular;
+    GLOBAL_SCHEDULER = newScheduler;
 }
 
 /*return active scheduler or print error if not set*/
 scheduler lwp_get_scheduler(void) {
-    if (GLOBAL_SCHEDULAR)
-        return GLOBAL_SCHEDULAR;
+    if (GLOBAL_SCHEDULER)
+        return GLOBAL_SCHEDULER;
 
     else {
         fprintf(stderr, "No scheduler set. Exiting...\n");
