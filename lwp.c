@@ -193,6 +193,7 @@ tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
     newThread->stack = stack;
     newThread->stacksize = stackSize;
     newThread->state.fxsave = FPU_INIT;
+    newThread->state.rsp = sp;
     /* lib_one, lib_two, sched_one, sched_two are undefined and can be used later */
     GLOBAL_SCHEDULER->admit(newThread);
 
@@ -204,19 +205,20 @@ tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
   to get the next thread. If there are no other threads, 
   restores the original system thread.*/
 void  lwp_exit(void) {
-    thread nextThread = GLOBAL_SCHEDULER->next(); 
+    thread oldThread, nextThread = GLOBAL_SCHEDULER->next(); 
 	if(!nextThread)
 		lwp_stop();
 
+    oldThread = activeThread;
 	/*finds the active thread in the scheduler and removes it,
 	  then frees the thread*/
-	thread temp = tid2thread(activeThread->tid);
-	GLOBAL_SCHEDULER->remove(temp);
-	free(temp);
+	GLOBAL_SCHEDULER->remove(oldThread);
+    free(oldThread->stack);
+	free(oldThread);
 
 	/*swap registers of next thread with active thread*/
 	activeThread = nextThread;  
-	swap_rfiles(&nextThread->state, &activeThread->state);
+	swap_rfiles(&oldThread->state, &nextThread->state);
 }
 
 tid_t lwp_gettid(void) {
@@ -231,18 +233,14 @@ tid_t lwp_gettid(void) {
   Saves the current LWP’s context, picks the next one, restores
   that thread’s context, and returns.*/
 void  lwp_yield(void) {
-	thread newThread = GLOBAL_SCHEDULER->next();
+	thread oldThread, newThread = GLOBAL_SCHEDULER->next();
 	if(!newThread)
 		lwp_stop();
 
-	/*find the active thread's saved state in scheduler,
-	  save its active registers*/
-	thread temp = tid2thread(activeThread->tid);
-	swap_rfiles(&activeThread->state, &temp->state);
-
-	/*swap registers of next thread with active thread*/
-	activeThread = newThread;  
-	swap_rfiles(&newThread->state, &activeThread->state);
+    // preform the thread swap
+    oldThread = activeThread;
+    activeThread = newThread;
+    swap_rfiles(&oldThread->state, &newThread->state);
 }
 
 /* Starts the LWP system. Saves the original context (for lwp stop()
@@ -255,7 +253,7 @@ void  lwp_start(void) {
     if (firstThread == NULL){
         return;
     }
-    // if we haven't creadted memory for the system's context, create it now.
+    // if we haven't created memory for the system's context, create it now.
     if (mainSystemThread == NULL){
         if (mainSystemThread = malloc(sizeof(struct threadinfo_st)) == NULL){
             perror("lwp_start");
