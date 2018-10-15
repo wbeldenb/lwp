@@ -12,7 +12,10 @@
 
 /*---------------------------------------------------------------------------*/
 /*GLOBAL's Space*/
+//id of the next thread to be created
 unsigned int nexttid = 0;
+
+//saves the active thread
 thread activeThread = NULL;
 
 //global queue to store threads
@@ -138,6 +141,15 @@ scheduler set_init_scheduler_RR() {
     return newScheduler;
 }
 
+// A simple function to take care of pushing things on to stacks
+// puts the void* onto the stack and shifts to the sp down to compensate
+uintptr_t stack_pusher(uintptr_t sp, void* pushMe){
+    void* loc = sp;
+    loc = pushMe;
+    sp -= sizeof(void *);
+    return sp;
+}
+
 tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
     void *stack = NULL;
     thread newThread;
@@ -158,13 +170,13 @@ tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
 
     uintptr_t sp = stack;
     sp += stackSize * __WORDSIZE;
-    uintptr_t bsp = sp;
     /* create a stack frame for the LWP */
-    /* putting the arguments on first, not sure if that's correct or not */
-    /* I reckon that lwp_start is just gonna yank this stuff off anyways */
-    stack[sp] = argument;
-    sp += sizeof(void *);
-    stack[sp] = function;
+    /* we're putting on lwp_exit, then the args, then the client function */
+    /* this is so that when we swap to this, the client func gets called (with its */
+    /* args in the right spot) and then when that returns it will return to lwp_exit() */
+    sp = stack_pusher(sp, &lwp_exit);
+    sp = stack_pusher(sp, argument);
+    sp = stack_pusher(sp, function);
 
 
     /* store the thread in a struct and put it in the scheduler */
@@ -175,15 +187,18 @@ tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
 
     newThread->tid = nexttid;
     nexttid++;
-    newThread->stack = bsp;
+    newThread->stack = stack;
     newThread->stacksize = stackSize;
-    /* lib_one, lib_two, sched_one, sched_two are undefined, can be used later*/
-    admit(newThread);
+    newThread->state.fxsave = FPU_INIT;
+    /* lib_one, lib_two, sched_one, sched_two are undefined and can be used later */
+    GLOBAL_SCHEDULER->admit(newThread);
 
     return newThread->tid;
 }
 
 void  lwp_exit(void) {
+    
+
 /* TODO: decrement nexttid */
 	if(!GLOBAL_SCHEDULER->next())
 		lwp_stop();
@@ -215,8 +230,21 @@ void  lwp_yield(void) {
 }
 
 void  lwp_start(void) {
-	if(!GLOBAL_SCHEDULER->next())
-		lwp_stop();
+	thread mainSystemThread, firstThread;
+
+    firstThread = GLOBAL_SCHEDULER->next;
+    if (firstThread == NULL){
+        return;
+    }
+
+    if (mainSystemThread = malloc(sizeof(struct threadinfo_st)) == NULL){
+        perror("lwp_start");
+        exit(EXIT_FAILURE);
+    }
+
+    mainSystemThread->state.fxsave = FPU_INIT;
+    
+    swap_rfiles(&(mainSystemThread->state), &(firstThread->state));
 }
 
 void  lwp_stop(void) {
