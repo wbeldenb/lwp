@@ -206,7 +206,7 @@ void  lwp_set_scheduler(scheduler fun) {
 		newSchedular = fun;
 		fun->init();
 	}
-	
+
     thread temp = GLOBAL_SCHEDULAR->next();
 
     /*move all thread from current schedular to new*/
@@ -230,4 +230,22 @@ scheduler lwp_get_scheduler(void) {
         fprintf(stderr, "No scheduler set. Exiting...\n");
         return NULL;
     }
+}
+
+/*Returns the thread corresponding to the given thread ID, or
+NULL if the ID is invalid*/
+thread tid2thread(tid_t tid) {
+	if (tid < 0)
+		return NULL;
+
+	QNode temp = GLOBAL_SCHEDULAR->tq->head;
+
+	while(temp) {
+		if (temp->t->tid == tid)
+			return temp->t;
+
+		temp = temp->next;
+	}
+
+	return NULL;
 }
