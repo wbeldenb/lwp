@@ -117,24 +117,27 @@ void createQueue_RR(threadQueue tq) {
 /*---------------------------------------------------------------------------*/
 /* thread functions */
 
-void set_init_schedular_RR() {
-    GLOBAL_SCHEDULAR = malloc(sizeof(struct scheduler));
+scheduler set_init_schedular_RR() {
+	scheduler newSchedular;
+    newSchedular = malloc(sizeof(struct scheduler));
 
-    GLOBAL_SCHEDULAR->init = init_RR;
-    GLOBAL_SCHEDULAR->shutdown = shutdown_RR;
-    GLOBAL_SCHEDULAR->admit = admit_RR;
-    GLOBAL_SCHEDULAR->remove = remove_RR;
-    GLOBAL_SCHEDULAR->next = next_RR;
-    GLOBAL_SCHEDULAR->createQueue = createQueue_RR;
+    newSchedular->init = init_RR;
+    newSchedular->shutdown = shutdown_RR;
+    newSchedular->admit = admit_RR;
+    newSchedular->remove = remove_RR;
+    newSchedular->next = next_RR;
+    newSchedular->createQueue = createQueue_RR;
 
-    GLOBAL_SCHEDULAR->init();
+    newSchedular->init();
+
+    return newSchedular;
 }
 
 tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
     void *stack = NULL;
     thread newThread;
-    set_init_schedular_RR();
-    
+    GLOBAL_SCHEDULAR = set_init_schedular_RR();
+
     /* allocate a stack for the LWP */
     if ((stack = malloc(stackSize * __WORDSIZE)) == NULL){
         perror("lwp_create");
@@ -157,6 +160,7 @@ tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
         perror("lwp_create");
         exit(EXIT_FAILURE);
     }
+
     newThread->tid = nexttid;
     nexttid++;
     newThread->stack = bsp;
@@ -193,9 +197,28 @@ void  lwp_stop(void) {
 
 /*set new schedular*/
 void  lwp_set_scheduler(scheduler fun) {
-    /*a lot more to this, see spec*/
+	scheduler newSchedular;
 
-    GLOBAL_SCHEDULAR = fun;
+	if (!fun)
+		newSchedular = set_init_schedular_RR();
+
+	else {
+		newSchedular = fun;
+		fun->init();
+	}
+	
+    thread temp = GLOBAL_SCHEDULAR->next();
+
+    /*move all thread from current schedular to new*/
+    while (temp) {
+    	GLOBAL_SCHEDULAR->remove(temp);
+    	newSchedular->admit(temp);
+    	temp = GLOBAL_SCHEDULAR->next();
+    }
+
+    GLOBAL_SCHEDULAR->shutdown();
+
+    GLOBAL_SCHEDULAR = newSchedular;
 }
 
 /*return active scheduler or print error if not set*/

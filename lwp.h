@@ -82,6 +82,8 @@ typedef struct scheduler {
   threadQueue tq;
 } *scheduler;
 
+scheduler set_init_schedular_RR();
+
 /* lwp functions */
 tid_t lwp_create(lwpfun,void *,size_t);
 void  lwp_exit(void);
