@@ -69,7 +69,7 @@ void deQueue(threadQueue tq, thread victim) {
                 temp->next->prev = temp->prev;
 
             if (temp == tq->head)
-                tq->head == temp->next;
+                tq->head = temp->next;
 
             if(temp == tq->tail)
                 tq->tail = temp->prev;
@@ -163,7 +163,7 @@ tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
 
     //if no thread list, create one
     if (!GLOBAL_THREAD_QUEUE)
-   		createQueue(GLOBAL_THREAD_QUEUE);
+   		createQueue_RR(GLOBAL_THREAD_QUEUE);
 
     /* allocate a stack for the LWP */
     if ((stack = malloc(stackSize * sizeof(unsigned long))) == NULL){
