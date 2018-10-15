@@ -15,6 +15,9 @@
 unsigned int nexttid = 0;
 thread activeThread = NULL;
 
+//global queue to store threads
+threadQueue GLOBAL_THREAD_QUEUE = NULL;
+
 /*global scheduler*/
 scheduler GLOBAL_SCHEDULAR = NULL;
 
@@ -77,31 +80,34 @@ void deQueue(threadQueue tq, thread victim) {
 
 /*initialize any structs*/
 void init_RR(void) {
-    GLOBAL_SCHEDULAR->createQueue(GLOBAL_SCHEDULAR->tq);
 }
 
 /*tear down any structures*/
 void shutdown_RR(void) {
-    free(GLOBAL_SCHEDULAR->tq);
     free(GLOBAL_SCHEDULAR);
 }
 
 /* add a thread to the pool*/
 void admit_RR(thread new) {
-    threadQueue temp = GLOBAL_SCHEDULAR->tq;
+    threadQueue temp = GLOBAL_THREAD_QUEUE;
     temp->enQueue(temp, new);
 }
 
 
 /* remove a thread from the pool */
 void remove_RR(thread victim) {
-    threadQueue temp = GLOBAL_SCHEDULAR->tq;
+    threadQueue temp = GLOBAL_THREAD_QUEUE;
     temp->deQueue(temp, victim);
 }
  
 /* select a thread to schedule */ 
 thread next_RR(void) {
-    return GLOBAL_SCHEDULAR->tq->head->t;
+	thread temp = GLOBAL_THREAD_QUEUE->head->t;
+	GLOBAL_THREAD_QUEUE->head = GLOBAL_THREAD_QUEUE->head->next;
+	GLOBAL_THREAD_QUEUE->head->prev = NULL;
+	remove_RR(temp);
+	admit_RR(temp);
+	return temp;
 }
 
 /*create thread queue*/
@@ -126,7 +132,6 @@ scheduler set_init_schedular_RR() {
     newSchedular->admit = admit_RR;
     newSchedular->remove = remove_RR;
     newSchedular->next = next_RR;
-    newSchedular->createQueue = createQueue_RR;
 
     newSchedular->init();
 
@@ -137,6 +142,7 @@ tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
     void *stack = NULL;
     thread newThread;
     GLOBAL_SCHEDULAR = set_init_schedular_RR();
+    createQueue(GLOBAL_THREAD_QUEUE);
 
     /* allocate a stack for the LWP */
     if ((stack = malloc(stackSize * __WORDSIZE)) == NULL){
@@ -173,6 +179,8 @@ tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
 
 void  lwp_exit(void) {
 /* TODO: decrement nexttid */
+	if(!GLOBAL_SCHEDULAR->next())
+		lwp_stop();
 }
 
 tid_t lwp_gettid(void) {
@@ -183,12 +191,26 @@ tid_t lwp_gettid(void) {
     }
 }
 
+/*Yields control to another LWP. Which one depends on the scheduler. 
+  Saves the current LWP’s context, picks the next one, restores
+  that thread’s context, and returns.*/
 void  lwp_yield(void) {
-    
+	if(!GLOBAL_SCHEDULAR->next())
+		lwp_stop();
+
+	/*find the active thread's saved state in scheduler,
+	  save its active registers*/
+	thread temp = tid2thread(activeThread->tid);
+	swap_rfiles(&activeThread->state, &temp->state);
+
+	/*swap registers of next thread with active thread*/
+	activeThread = GLOBAL_SCHEDULAR->next();  
+	swap_rfiles(&GLOBAL_SCHEDULAR->next()->state, &activeThread->state);
 }
 
 void  lwp_start(void) {
-
+	if(!GLOBAL_SCHEDULAR->next())
+		lwp_stop();
 }
 
 void  lwp_stop(void) {
@@ -207,13 +229,13 @@ void  lwp_set_scheduler(scheduler fun) {
 		fun->init();
 	}
 
-    thread temp = GLOBAL_SCHEDULAR->next();
+    QNode temp = GLOBAL_THREAD_QUEUE->head;
 
     /*move all thread from current schedular to new*/
     while (temp) {
-    	GLOBAL_SCHEDULAR->remove(temp);
-    	newSchedular->admit(temp);
-    	temp = GLOBAL_SCHEDULAR->next();
+    	GLOBAL_SCHEDULAR->remove(temp->t);
+    	newSchedular->admit(temp->t);
+    	temp = temp->next;
     }
 
     GLOBAL_SCHEDULAR->shutdown();
@@ -238,7 +260,7 @@ thread tid2thread(tid_t tid) {
 	if (tid < 0)
 		return NULL;
 
-	QNode temp = GLOBAL_SCHEDULAR->tq->head;
+	QNode temp = GLOBAL_THREAD_QUEUE->head;
 
 	while(temp) {
 		if (temp->t->tid == tid)

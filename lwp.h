@@ -78,8 +78,6 @@ typedef struct scheduler {
   void   (*admit)(thread new);     /* add a thread to the pool      */
   void   (*remove)(thread victim); /* remove a thread from the pool */
   thread (*next)(void);            /* select a thread to schedule   */
-  void (*createQueue)(threadQueue tq);
-  threadQueue tq;
 } *scheduler;
 
 scheduler set_init_schedular_RR();
