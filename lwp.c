@@ -216,7 +216,8 @@ tid_t lwp_gettid(void) {
   Saves the current LWP’s context, picks the next one, restores
   that thread’s context, and returns.*/
 void  lwp_yield(void) {
-	if(!GLOBAL_SCHEDULER->next())
+	thread newThread = GLOBAL_SCHEDULER->next();
+	if(!newThread)
 		lwp_stop();
 
 	/*find the active thread's saved state in scheduler,
@@ -225,8 +226,8 @@ void  lwp_yield(void) {
 	swap_rfiles(&activeThread->state, &temp->state);
 
 	/*swap registers of next thread with active thread*/
-	activeThread = GLOBAL_SCHEDULER->next();  
-	swap_rfiles(&GLOBAL_SCHEDULER->next()->state, &activeThread->state);
+	activeThread = newThread;  
+	swap_rfiles(&newThread->state, &activeThread->state);
 }
 
 void  lwp_start(void) {
