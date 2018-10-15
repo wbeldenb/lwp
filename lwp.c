@@ -147,8 +147,8 @@ scheduler set_init_scheduler_RR() {
 // A simple function to take care of pushing things on to stacks
 // puts the void* onto the stack and shifts to the sp down to compensate
 uintptr_t stack_pusher(uintptr_t sp, void* pushMe){
-    void* loc = sp;
-    loc = pushMe;
+    void** loc = (void **)sp;
+    *loc = pushMe;
     sp -= sizeof(void *);
     return sp;
 }
@@ -171,18 +171,18 @@ tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
         exit(EXIT_FAILURE);
     }
 
-    uintptr_t sp = stack;
+    uintptr_t sp = (uintptr_t)stack;
     sp += stackSize * sizeof(unsigned long);
     /* create a stack frame for the LWP */
-    /* we're putting on lwp_exit, then the args, then the client function */
-    /* this is so that when we swap to this, the client func gets called (with its */
-    /* args in the right spot) and then when that returns it will return to lwp_exit() */
+    /* we're putting on lwp_exit, then the client function */
+    /* this is so that when we swap to this, the client func gets called */
+    /* and then when that returns it will return to lwp_exit() */
     sp = stack_pusher(sp, &lwp_exit);
     sp = stack_pusher(sp, function);
 
 
     /* store the thread in a struct and put it in the scheduler */
-    if (newThread = malloc(sizeof(struct threadinfo_st)) == NULL){
+    if ((newThread = malloc(sizeof(struct threadinfo_st))) == NULL){
         perror("lwp_create");
         exit(EXIT_FAILURE);
     }
@@ -193,7 +193,7 @@ tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
     newThread->stacksize = stackSize;
     newThread->state.fxsave = FPU_INIT;
     newThread->state.rbp = sp;
-    newThread->state.rdi = argument;
+    newThread->state.rdi = (unsigned long) argument;
     /* lib_one, lib_two, sched_one, sched_two are undefined and can be used later */
     GLOBAL_SCHEDULER->admit(newThread);
 
@@ -230,7 +230,7 @@ void  lwp_exit(void) {
 
 tid_t lwp_gettid(void) {
     if (activeThread == NULL){
-        return NULL;
+        return NO_THREAD;
     } else {
         return activeThread->tid;
     }
@@ -262,7 +262,7 @@ void  lwp_start(void) {
     }
     // if we haven't created memory for the system's context, create it now.
     if (mainSystemThread == NULL){
-        if (mainSystemThread = malloc(sizeof(struct threadinfo_st)) == NULL){
+        if ((mainSystemThread = malloc(sizeof(struct threadinfo_st))) == NULL){
             perror("lwp_start");
             exit(EXIT_FAILURE);
         }
