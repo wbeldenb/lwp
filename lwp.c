@@ -13,7 +13,7 @@
 /*---------------------------------------------------------------------------*/
 /*GLOBAL's Space*/
 //id of the next thread to be created
-unsigned int nexttid = 0;
+unsigned int nexttid = 1;
 
 //saves the active thread
 thread activeThread = NULL;
@@ -25,7 +25,7 @@ threadQueue GLOBAL_THREAD_QUEUE = NULL;
 scheduler GLOBAL_SCHEDULER = NULL;
 
 // Main system Thread
-thread mainSystemThread = NULL;
+thread mainSystemThread;
 
 /*---------------------------------------------------------------------------*/
 /*queue functions, maybe move to different file?*/
@@ -166,19 +166,18 @@ tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
    		createQueue(GLOBAL_THREAD_QUEUE);
 
     /* allocate a stack for the LWP */
-    if ((stack = malloc(stackSize * __WORDSIZE)) == NULL){
+    if ((stack = malloc(stackSize * sizeof(unsigned long))) == NULL){
         perror("lwp_create");
         exit(EXIT_FAILURE);
     }
 
     uintptr_t sp = stack;
-    sp += stackSize * __WORDSIZE;
+    sp += stackSize * sizeof(unsigned long);
     /* create a stack frame for the LWP */
     /* we're putting on lwp_exit, then the args, then the client function */
     /* this is so that when we swap to this, the client func gets called (with its */
     /* args in the right spot) and then when that returns it will return to lwp_exit() */
     sp = stack_pusher(sp, &lwp_exit);
-    sp = stack_pusher(sp, argument);
     sp = stack_pusher(sp, function);
 
 
@@ -193,11 +192,22 @@ tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
     newThread->stack = stack;
     newThread->stacksize = stackSize;
     newThread->state.fxsave = FPU_INIT;
-    newThread->state.rsp = sp;
+    newThread->state.rbp = sp;
+    newThread->state.rdi = argument;
     /* lib_one, lib_two, sched_one, sched_two are undefined and can be used later */
     GLOBAL_SCHEDULER->admit(newThread);
 
     return newThread->tid;
+}
+
+void actuallyExit(thread oldThread, thread nextThread){
+    // destroy the old thread
+    free(oldThread->stack);
+	free(oldThread);
+
+	/*swap registers of next thread with active thread*/
+	activeThread = nextThread;  
+	swap_rfiles(&oldThread->state, &nextThread->state);
 }
 
 
@@ -213,12 +223,9 @@ void  lwp_exit(void) {
 	/*finds the active thread in the scheduler and removes it,
 	  then frees the thread*/
 	GLOBAL_SCHEDULER->remove(oldThread);
-    free(oldThread->stack);
-	free(oldThread);
 
-	/*swap registers of next thread with active thread*/
-	activeThread = nextThread;  
-	swap_rfiles(&oldThread->state, &nextThread->state);
+    SetSP(mainSystemThread->state.rsp);
+    actuallyExit(oldThread, nextThread);
 }
 
 tid_t lwp_gettid(void) {
