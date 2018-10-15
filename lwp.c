@@ -141,8 +141,14 @@ scheduler set_init_scheduler_RR() {
 tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
     void *stack = NULL;
     thread newThread;
-    GLOBAL_SCHEDULER = set_init_scheduler_RR();
-    createQueue(GLOBAL_THREAD_QUEUE);
+
+    //if not scheduler, create one
+    if(!GLOBAL_SCHEDULER)
+    	GLOBAL_SCHEDULER = set_init_scheduler_RR();
+
+    //if no thread list, create one
+    if (!GLOBAL_THREAD_QUEUE)
+   		createQueue(GLOBAL_THREAD_QUEUE);
 
     /* allocate a stack for the LWP */
     if ((stack = malloc(stackSize * __WORDSIZE)) == NULL){
