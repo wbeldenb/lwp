@@ -24,6 +24,9 @@ threadQueue GLOBAL_THREAD_QUEUE = NULL;
 /*global scheduler*/
 scheduler GLOBAL_SCHEDULER = NULL;
 
+// Main system Thread
+thread mainSystemThread = NULL;
+
 /*---------------------------------------------------------------------------*/
 /*queue functions, maybe move to different file?*/
 
@@ -242,26 +245,39 @@ void  lwp_yield(void) {
 	swap_rfiles(&newThread->state, &activeThread->state);
 }
 
+/* Starts the LWP system. Saves the original context (for lwp stop()
+to use later), picks a LWP and starts it running. If there are no
+LWPs, returns immediately */
 void  lwp_start(void) {
-	thread mainSystemThread, firstThread;
+	thread firstThread;
 
     firstThread = GLOBAL_SCHEDULER->next();
     if (firstThread == NULL){
         return;
     }
-
-    if (mainSystemThread = malloc(sizeof(struct threadinfo_st)) == NULL){
-        perror("lwp_start");
-        exit(EXIT_FAILURE);
+    // if we haven't creadted memory for the system's context, create it now.
+    if (mainSystemThread == NULL){
+        if (mainSystemThread = malloc(sizeof(struct threadinfo_st)) == NULL){
+            perror("lwp_start");
+            exit(EXIT_FAILURE);
+        }
     }
 
     mainSystemThread->state.fxsave = FPU_INIT;
     
     swap_rfiles(&(mainSystemThread->state), &(firstThread->state));
+    // When lwp_stop is executed, it should return to right here
+    return;
 }
 
+/* Stops the LWP system, restores the original stack pointer and returns
+to that context. (Wherever lwp start() was called from.
+lwp stop() does not destroy any existing contexts, and thread
+processing will be restarted by a call to lwp start(). */
 void  lwp_stop(void) {
-
+    thread finalThread = activeThread;
+    activeThread = NULL; // There isn't an active thread anymore
+    swap_rfiles(&(finalThread->state), &(mainSystemThread->state));
 }
 
 /*set new scheduler*/
@@ -298,7 +314,7 @@ scheduler lwp_get_scheduler(void) {
         return GLOBAL_SCHEDULER;
 
     else {
-        fprintf(stderr, "No scheduler set. Exiting...\n");
+        fprintf(stderr, "No scheduler set.\n");
         return NULL;
     }
 }
