@@ -196,12 +196,24 @@ tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
     return newThread->tid;
 }
 
-void  lwp_exit(void) {
-    
 
-/* TODO: decrement nexttid */
-	if(!GLOBAL_SCHEDULER->next())
+/*Terminates the current LWP and frees its resources. Calls sched->next()
+  to get the next thread. If there are no other threads, 
+  restores the original system thread.*/
+void  lwp_exit(void) {
+    thread nextThread = GLOBAL_SCHEDULER->next(); 
+	if(!nextThread)
 		lwp_stop();
+
+	/*finds the active thread in the scheduler and removes it,
+	  then frees the thread*/
+	thread temp = tid2thread(activeThread->tid);
+	GLOBAL_SCHEDULER->remove(temp);
+	free(temp);
+
+	/*swap registers of next thread with active thread*/
+	activeThread = nextThread;  
+	swap_rfiles(&nextThread->state, &activeThread->state);
 }
 
 tid_t lwp_gettid(void) {
@@ -233,7 +245,7 @@ void  lwp_yield(void) {
 void  lwp_start(void) {
 	thread mainSystemThread, firstThread;
 
-    firstThread = GLOBAL_SCHEDULER->next;
+    firstThread = GLOBAL_SCHEDULER->next();
     if (firstThread == NULL){
         return;
     }
