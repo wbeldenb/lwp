@@ -194,7 +194,8 @@ tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
     newThread->state.fxsave = FPU_INIT;
     newThread->state.rbp = sp;
     newThread->state.rdi = (unsigned long) argument;
-    /* lib_one, lib_two, sched_one, sched_two are undefined and can be used later */
+    /* lib_one, lib_two, sched_one, sched_two 
+     * are undefined and can be used later */
     GLOBAL_SCHEDULER->admit(newThread);
 
     return newThread->tid;
@@ -254,7 +255,7 @@ void  lwp_yield(void) {
 to use later), picks a LWP and starts it running. If there are no
 LWPs, returns immediately */
 void  lwp_start(void) {
-	thread firstThread;
+    thread firstThread;
 
     if (GLOBAL_SCHEDULER == NULL){
         return;
