@@ -31,7 +31,7 @@ thread mainSystemThread;
 /*queue functions, maybe move to different file?*/
 
 QNode newNode(thread new) {
-    QNode temp = (QNode)malloc(sizeof(QNode)); 
+    QNode temp = malloc(sizeof(struct QNode)); 
     temp->t = new; 
     temp->next = NULL; 
     temp->prev = NULL;
@@ -108,9 +108,12 @@ void remove_RR(thread victim) {
  
 /* select a thread to schedule */ 
 thread next_RR(void) {
+        if (GLOBAL_THREAD_QUEUE->head == NULL){
+           return NULL;
+        }
 	thread temp = GLOBAL_THREAD_QUEUE->head->t;
-	GLOBAL_THREAD_QUEUE->head = GLOBAL_THREAD_QUEUE->head->next;
-	GLOBAL_THREAD_QUEUE->head->prev = NULL;
+	//GLOBAL_THREAD_QUEUE->head = GLOBAL_THREAD_QUEUE->head->next;
+	//GLOBAL_THREAD_QUEUE->head->prev = NULL;
 	remove_RR(temp);
 	admit_RR(temp);
 	return temp;
@@ -118,12 +121,14 @@ thread next_RR(void) {
 
 /*create thread queue*/
 void createQueue_RR(threadQueue tq) {
-    tq = (threadQueue)malloc(sizeof(threadQueue)); 
-    tq->head = tq->tail = NULL;
+    tq = malloc(sizeof(struct threadQueue)); 
+    tq->head = NULL;
+    tq->tail = NULL;
 
     tq->newNode = newNode;
     tq->enQueue = enQueue;
     tq->deQueue = deQueue;   
+    GLOBAL_THREAD_QUEUE = tq;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -166,7 +171,7 @@ tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
    		createQueue_RR(GLOBAL_THREAD_QUEUE);
 
     /* allocate a stack for the LWP */
-    if ((stack = malloc(stackSize * sizeof(unsigned long))) == NULL){
+    if ((stack = malloc((stackSize + 1)* sizeof(unsigned long))) == NULL){
         perror("lwp_create");
         exit(EXIT_FAILURE);
     }
@@ -204,11 +209,11 @@ tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
 void actuallyExit(thread oldThread, thread nextThread){
     // destroy the old thread
     free(oldThread->stack);
-	free(oldThread);
+    free(oldThread);
 
-	/*swap registers of next thread with active thread*/
-	activeThread = nextThread;  
-	swap_rfiles(&oldThread->state, &nextThread->state);
+    /*swap registers of next thread with active thread*/
+    activeThread = nextThread;  
+    load_context(&nextThread->state);
 }
 
 
@@ -216,14 +221,19 @@ void actuallyExit(thread oldThread, thread nextThread){
   to get the next thread. If there are no other threads, 
   restores the original system thread.*/
 void  lwp_exit(void) {
-    thread oldThread, nextThread = GLOBAL_SCHEDULER->next(); 
-	if(!nextThread)
-		lwp_stop();
+   thread oldThread, nextThread;
 
-    oldThread = activeThread;
-	/*finds the active thread in the scheduler and removes it,
+   oldThread = activeThread;
+
+   GLOBAL_SCHEDULER->remove(oldThread);
+
+   nextThread = GLOBAL_SCHEDULER->next(); 
+	if(nextThread == NULL){
+            lwp_stop();
+        }
+
+    	/*finds the active thread in the scheduler and removes it,
 	  then frees the thread*/
-	GLOBAL_SCHEDULER->remove(oldThread);
 
     SetSP(mainSystemThread->state.rsp);
     actuallyExit(oldThread, nextThread);
@@ -242,8 +252,9 @@ tid_t lwp_gettid(void) {
   that thread’s context, and returns.*/
 void  lwp_yield(void) {
 	thread oldThread, newThread = GLOBAL_SCHEDULER->next();
-	if(!newThread)
+	if(newThread == NULL){
 		lwp_stop();
+        }
 
     // preform the thread swap
     oldThread = activeThread;
@@ -256,7 +267,9 @@ to use later), picks a LWP and starts it running. If there are no
 LWPs, returns immediately */
 void  lwp_start(void) {
     thread firstThread;
-
+    
+    //printf("\nRunning lwp_start\n");
+    //fflush(stdout);
     if (GLOBAL_SCHEDULER == NULL){
         return;
     }
@@ -273,7 +286,12 @@ void  lwp_start(void) {
     }
 
     mainSystemThread->state.fxsave = FPU_INIT;
-    
+   
+    //printf("Finished lwp_start\n");
+    //fflush(stdout);
+
+    activeThread = firstThread;
+
     swap_rfiles(&(mainSystemThread->state), &(firstThread->state));
     // When lwp_stop is executed, it should return to right here
     return;
@@ -284,6 +302,8 @@ to that context. (Wherever lwp start() was called from.
 lwp stop() does not destroy any existing contexts, and thread
 processing will be restarted by a call to lwp start(). */
 void  lwp_stop(void) {
+    //printf("Started lwp_stop\n");
+    fflush(stdout);
     thread finalThread = activeThread;
     activeThread = NULL; // There isn't an active thread anymore
     swap_rfiles(&(finalThread->state), &(mainSystemThread->state));
