@@ -14,8 +14,11 @@ clean:
 	rm liblwp.so
 	make
 
-testfile: tests.o liblwp.so
-	gcc $(CFLAGS) -L . -l:liblwp.so -o tester tests.o
+testfile: tests.o Random.o liblwp.so
+	gcc $(CFLAGS) -L . -l:liblwp.so -o tester Random.o tests.o
 
 tests.o: tests.c
-	gcc $(CFLAGS) -o tests.o -c tests.c
+	gcc $(CFLAGS) -o tests.o -c tests.c 
+
+Random.o: Random.c
+	gcc $(CFLAGS) -o Random.o -c Random.c

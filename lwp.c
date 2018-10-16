@@ -27,6 +27,10 @@ scheduler GLOBAL_SCHEDULER = NULL;
 // Main system Thread
 thread mainSystemThread;
 
+// top of linked list for all the current threads
+thread threadLL = NULL;
+thread tailLL = NULL;
+
 /*---------------------------------------------------------------------------*/
 /*queue functions, maybe move to different file?*/
 
@@ -38,16 +42,28 @@ QNode newNode(thread new) {
     return temp;
 }
 
+void dumpQueue(threadQueue tq){
+   QNode temp = tq->head;
+   while (temp != NULL){
+      printf(" %d", (int) temp->t->tid);
+      temp = temp->next;
+   }
+   printf(".\n");
+}
+
 void enQueue(threadQueue tq, thread new) {
     //Create a new Qnode 
     QNode temp = newNode(new); 
   
     //If queue is empty, then new node is both the head and tail
-    if (tq->tail == NULL)
-       tq->head = tq->tail = temp;
+    if (tq->tail == NULL){
+       tq->head = temp;
+       tq->tail = temp;
+    }
   
     //Add the new node at the end of queue and change tail 
     else {
+        temp->prev = tq->tail;
         tq->tail->next = temp; 
         tq->tail = temp; 
     }
@@ -62,6 +78,7 @@ void deQueue(threadQueue tq, thread victim) {
     /*go through queue until match is found*/
     while (temp != NULL) {
         if (temp->t->tid == victim->tid) {
+           //printf("found victim\n");
             if (temp->prev)
                 temp->prev->next = temp->next;
 
@@ -71,8 +88,17 @@ void deQueue(threadQueue tq, thread victim) {
             if (temp == tq->head)
                 tq->head = temp->next;
 
-            if(temp == tq->tail)
+            if (temp == tq->tail){
+               //printf("yeeting tail: %d\n", (int)(tq->tail->t->tid));
                 tq->tail = temp->prev;
+                if(tq->tail != NULL) {
+                  tq->tail->next = NULL;
+                  //printf("tail yeeted: %d\n", (int)(tq->tail->t->tid));
+                } else {
+                  //printf("tail null\n");
+                }
+
+            }
 
             break;
         }
@@ -95,28 +121,39 @@ void shutdown_RR(void) {
 
 /* add a thread to the pool*/
 void admit_RR(thread new) {
+    //printf("before admit of %d: ", (int)(new->tid));
+    //dumpQueue(GLOBAL_THREAD_QUEUE);
     threadQueue temp = GLOBAL_THREAD_QUEUE;
     temp->enQueue(temp, new);
+    //printf("before admit of %d: ", (int)(new->tid));
+    //dumpQueue(GLOBAL_THREAD_QUEUE);
 }
 
 
 /* remove a thread from the pool */
 void remove_RR(thread victim) {
+    //printf("before remove of %d: ", (int)(victim->tid));
+    //dumpQueue(GLOBAL_THREAD_QUEUE);
+
     threadQueue temp = GLOBAL_THREAD_QUEUE;
     temp->deQueue(temp, victim);
+
+    //printf("after remove of %d: ", (int)(victim->tid));
+    //dumpQueue(GLOBAL_THREAD_QUEUE);
 }
  
 /* select a thread to schedule */ 
 thread next_RR(void) {
-        if (GLOBAL_THREAD_QUEUE->head == NULL){
-           return NULL;
-        }
-	thread temp = GLOBAL_THREAD_QUEUE->head->t;
-	//GLOBAL_THREAD_QUEUE->head = GLOBAL_THREAD_QUEUE->head->next;
-	//GLOBAL_THREAD_QUEUE->head->prev = NULL;
-	remove_RR(temp);
-	admit_RR(temp);
-	return temp;
+      //printf("doing next_RR\n");
+      if (GLOBAL_THREAD_QUEUE->head == NULL){
+         return NULL;
+      }
+      thread temp = GLOBAL_THREAD_QUEUE->head->t;
+      //GLOBAL_THREAD_QUEUE->head = GLOBAL_THREAD_QUEUE->head->next;
+      //GLOBAL_THREAD_QUEUE->head->prev = NULL;
+      remove_RR(temp);
+      admit_RR(temp);
+      return temp;
 }
 
 /*create thread queue*/
@@ -130,6 +167,35 @@ void createQueue_RR(threadQueue tq) {
     tq->deQueue = deQueue;   
     GLOBAL_THREAD_QUEUE = tq;
 }
+
+void removeWrapper(thread victim, scheduler sched){
+   if (victim->lib_two != NULL){
+      victim->lib_two->lib_one = victim->lib_one;
+   } else {
+      threadLL = victim->lib_one;
+   }
+   if (victim->lib_one != NULL){
+      victim->lib_one->lib_two = victim->lib_two;
+   }
+   sched->remove(victim);
+}
+
+void addWrapper(thread new, scheduler sched){
+   //dumpQueue(GLOBAL_THREAD_QUEUE);
+   new->lib_two = tailLL;
+   new->lib_one = NULL;
+   if(threadLL == NULL) {
+      threadLL = new;
+   }
+   if(tailLL != NULL) {
+      tailLL->lib_one = new;
+   }
+   tailLL = new;
+   sched->admit(new);
+}
+
+   
+
 
 /*---------------------------------------------------------------------------*/
 /* thread functions */
@@ -170,6 +236,11 @@ tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
     if (!GLOBAL_THREAD_QUEUE)
    		createQueue_RR(GLOBAL_THREAD_QUEUE);
 
+    // Stack has to be at least 300 words
+    if (stackSize < 300){
+       stackSize = 300;
+    }
+
     /* allocate a stack for the LWP */
     if ((stack = malloc((stackSize + 1)* sizeof(unsigned long))) == NULL){
         perror("lwp_create");
@@ -201,8 +272,8 @@ tid_t lwp_create(lwpfun function, void *argument, size_t stackSize) {
     newThread->state.rdi = (unsigned long) argument;
     /* lib_one, lib_two, sched_one, sched_two 
      * are undefined and can be used later */
-    GLOBAL_SCHEDULER->admit(newThread);
-
+    addWrapper(newThread, GLOBAL_SCHEDULER);
+      
     return newThread->tid;
 }
 
@@ -224,13 +295,15 @@ void  lwp_exit(void) {
    thread oldThread, nextThread;
 
    oldThread = activeThread;
+  
+   //dumpQueue(GLOBAL_THREAD_QUEUE);
+   removeWrapper(oldThread, GLOBAL_SCHEDULER);
+   //nexttid--;
 
-   GLOBAL_SCHEDULER->remove(oldThread);
-
-   nextThread = GLOBAL_SCHEDULER->next(); 
-	if(nextThread == NULL){
-            lwp_stop();
-        }
+   nextThread = GLOBAL_SCHEDULER->next();
+   if(nextThread == NULL){
+      lwp_stop();
+   }
 
     	/*finds the active thread in the scheduler and removes it,
 	  then frees the thread*/
@@ -249,16 +322,20 @@ tid_t lwp_gettid(void) {
 
 /*Yields control to another LWP. Which one depends on the scheduler. 
   Saves the current LWP’s context, picks the next one, restores
-  that thread’s context, and returns.*/
+  tht thread’s context, and returns.*/
 void  lwp_yield(void) {
-	thread oldThread, newThread = GLOBAL_SCHEDULER->next();
-	if(newThread == NULL){
-		lwp_stop();
-        }
-
+    thread oldThread, newThread = GLOBAL_SCHEDULER->next();
+    if(newThread == NULL){
+      lwp_stop();
+    }
     // preform the thread swap
     oldThread = activeThread;
     activeThread = newThread;
+
+    //printf("yielded: ");
+    //dumpQueue(GLOBAL_THREAD_QUEUE);
+    fflush(stdout);
+
     swap_rfiles(&oldThread->state, &newThread->state);
 }
 
@@ -268,8 +345,9 @@ LWPs, returns immediately */
 void  lwp_start(void) {
     thread firstThread;
     
-    //printf("\nRunning lwp_start\n");
-    //fflush(stdout);
+    if (activeThread != NO_THREAD){
+       return;
+    }
     if (GLOBAL_SCHEDULER == NULL){
         return;
     }
@@ -287,8 +365,6 @@ void  lwp_start(void) {
 
     mainSystemThread->state.fxsave = FPU_INIT;
    
-    //printf("Finished lwp_start\n");
-    //fflush(stdout);
 
     activeThread = firstThread;
 
@@ -302,10 +378,8 @@ to that context. (Wherever lwp start() was called from.
 lwp stop() does not destroy any existing contexts, and thread
 processing will be restarted by a call to lwp start(). */
 void  lwp_stop(void) {
-    //printf("Started lwp_stop\n");
-    fflush(stdout);
     thread finalThread = activeThread;
-    activeThread = NULL; // There isn't an active thread anymore
+    activeThread = NO_THREAD; // There isn't an active thread anymore
     swap_rfiles(&(finalThread->state), &(mainSystemThread->state));
 }
 
@@ -320,19 +394,25 @@ void  lwp_set_scheduler(scheduler fun) {
 	/*otherwise setup new scheduler*/
 	else {
 		newScheduler = fun;
-		fun->init();
+                if (fun->init != NULL){
+		  fun->init();
+                }
 	}
 
-    QNode temp = GLOBAL_THREAD_QUEUE->head;
+    thread temp = threadLL;
 
+   
+    temp = threadLL;
     /*move all thread from current scheduler to new*/
     while (temp) {
-    	GLOBAL_SCHEDULER->remove(temp->t);
-    	newScheduler->admit(temp->t);
-    	temp = temp->next;
+    	GLOBAL_SCHEDULER->remove(temp);
+        newScheduler->admit(temp);
+    	temp = temp->lib_one;
     }
 
-    GLOBAL_SCHEDULER->shutdown();
+    if (GLOBAL_SCHEDULER != NULL && GLOBAL_SCHEDULER->shutdown != NULL){
+      GLOBAL_SCHEDULER->shutdown();
+    }
 
     GLOBAL_SCHEDULER = newScheduler;
 }
@@ -351,7 +431,7 @@ scheduler lwp_get_scheduler(void) {
 /*Returns the thread corresponding to the given thread ID, or
 NULL if the ID is invalid*/
 thread tid2thread(tid_t tid) {
-	if (tid < 0)
+	if (tid <= 0)
 		return NULL;
 
 	QNode temp = GLOBAL_THREAD_QUEUE->head;
