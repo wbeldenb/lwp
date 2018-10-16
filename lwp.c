@@ -256,6 +256,9 @@ LWPs, returns immediately */
 void  lwp_start(void) {
 	thread firstThread;
 
+    if (GLOBAL_SCHEDULER == NULL){
+        return;
+    }
     firstThread = GLOBAL_SCHEDULER->next();
     if (firstThread == NULL){
         return;
