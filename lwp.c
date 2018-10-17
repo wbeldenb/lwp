@@ -32,7 +32,7 @@ thread threadLL = NULL;
 thread tailLL = NULL;
 
 /*---------------------------------------------------------------------------*/
-/*queue functions, maybe move to different file?*/
+/*queue functions*/
 
 QNode newNode(thread new) {
     QNode temp = malloc(sizeof(struct QNode)); 
@@ -42,6 +42,7 @@ QNode newNode(thread new) {
     return temp;
 }
 
+/*dump and print queue. for testing.*/
 void dumpQueue(threadQueue tq){
    QNode temp = tq->head;
    while (temp != NULL){
@@ -78,7 +79,6 @@ void deQueue(threadQueue tq, thread victim) {
     /*go through queue until match is found*/
     while (temp != NULL) {
         if (temp->t->tid == victim->tid) {
-           //printf("found victim\n");
             if (temp->prev)
                 temp->prev->next = temp->next;
 
@@ -89,15 +89,9 @@ void deQueue(threadQueue tq, thread victim) {
                 tq->head = temp->next;
 
             if (temp == tq->tail){
-               //printf("yeeting tail: %d\n", (int)(tq->tail->t->tid));
                 tq->tail = temp->prev;
-                if(tq->tail != NULL) {
+                if(tq->tail != NULL)
                   tq->tail->next = NULL;
-                  //printf("tail yeeted: %d\n", (int)(tq->tail->t->tid));
-                } else {
-                  //printf("tail null\n");
-                }
-
             }
 
             break;
@@ -121,36 +115,23 @@ void shutdown_RR(void) {
 
 /* add a thread to the pool*/
 void admit_RR(thread new) {
-    //printf("before admit of %d: ", (int)(new->tid));
-    //dumpQueue(GLOBAL_THREAD_QUEUE);
     threadQueue temp = GLOBAL_THREAD_QUEUE;
     temp->enQueue(temp, new);
-    //printf("before admit of %d: ", (int)(new->tid));
-    //dumpQueue(GLOBAL_THREAD_QUEUE);
 }
 
 
 /* remove a thread from the pool */
 void remove_RR(thread victim) {
-    //printf("before remove of %d: ", (int)(victim->tid));
-    //dumpQueue(GLOBAL_THREAD_QUEUE);
-
     threadQueue temp = GLOBAL_THREAD_QUEUE;
     temp->deQueue(temp, victim);
-
-    //printf("after remove of %d: ", (int)(victim->tid));
-    //dumpQueue(GLOBAL_THREAD_QUEUE);
 }
  
 /* select a thread to schedule */ 
 thread next_RR(void) {
-      //printf("doing next_RR\n");
-      if (GLOBAL_THREAD_QUEUE->head == NULL){
+      if (GLOBAL_THREAD_QUEUE->head == NULL)
          return NULL;
-      }
+
       thread temp = GLOBAL_THREAD_QUEUE->head->t;
-      //GLOBAL_THREAD_QUEUE->head = GLOBAL_THREAD_QUEUE->head->next;
-      //GLOBAL_THREAD_QUEUE->head->prev = NULL;
       remove_RR(temp);
       admit_RR(temp);
       return temp;
@@ -181,7 +162,6 @@ void removeWrapper(thread victim, scheduler sched){
 }
 
 void addWrapper(thread new, scheduler sched){
-   //dumpQueue(GLOBAL_THREAD_QUEUE);
    new->lib_two = tailLL;
    new->lib_one = NULL;
    if(threadLL == NULL) {
@@ -287,27 +267,21 @@ void actuallyExit(thread oldThread, thread nextThread){
     load_context(&nextThread->state);
 }
 
-
 /*Terminates the current LWP and frees its resources. Calls sched->next()
   to get the next thread. If there are no other threads, 
   restores the original system thread.*/
 void  lwp_exit(void) {
    thread oldThread, nextThread;
-
    oldThread = activeThread;
-  
-   //dumpQueue(GLOBAL_THREAD_QUEUE);
    removeWrapper(oldThread, GLOBAL_SCHEDULER);
-   //nexttid--;
 
    nextThread = GLOBAL_SCHEDULER->next();
    if(nextThread == NULL){
       lwp_stop();
    }
 
-    	/*finds the active thread in the scheduler and removes it,
-	  then frees the thread*/
-
+    /*finds the active thread in the scheduler and removes it,
+	then frees the thread*/
     SetSP(mainSystemThread->state.rsp);
     actuallyExit(oldThread, nextThread);
 }
@@ -331,11 +305,6 @@ void  lwp_yield(void) {
     // preform the thread swap
     oldThread = activeThread;
     activeThread = newThread;
-
-    //printf("yielded: ");
-    //dumpQueue(GLOBAL_THREAD_QUEUE);
-    fflush(stdout);
-
     swap_rfiles(&oldThread->state, &newThread->state);
 }
 
