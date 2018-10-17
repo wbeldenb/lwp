@@ -394,15 +394,13 @@ void  lwp_set_scheduler(scheduler fun) {
 	/*otherwise setup new scheduler*/
 	else {
 		newScheduler = fun;
-                if (fun->init != NULL){
-		  fun->init();
-                }
+        if (fun->init != NULL){
+			fun->init();
+        }
 	}
 
     thread temp = threadLL;
 
-   
-    temp = threadLL;
     /*move all thread from current scheduler to new*/
     while (temp) {
     	GLOBAL_SCHEDULER->remove(temp);
@@ -434,13 +432,13 @@ thread tid2thread(tid_t tid) {
 	if (tid <= 0)
 		return NULL;
 
-	QNode temp = GLOBAL_THREAD_QUEUE->head;
+	thread temp = threadLL;
 
 	while(temp) {
-		if (temp->t->tid == tid)
-			return temp->t;
+		if (temp->tid == tid)
+			return temp;
 
-		temp = temp->next;
+		temp = temp->lib_one;
 	}
 
 	return NULL;
