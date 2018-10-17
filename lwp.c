@@ -403,13 +403,15 @@ void  lwp_set_scheduler(scheduler fun) {
 
     /*move all thread from current scheduler to new*/
     while (temp) {
+    	GLOBAL_SCHEDULER->next();
     	GLOBAL_SCHEDULER->remove(temp);
         newScheduler->admit(temp);
     	temp = temp->lib_one;
     }
 
     if (GLOBAL_SCHEDULER != NULL && GLOBAL_SCHEDULER->shutdown != NULL){
-      GLOBAL_SCHEDULER->shutdown();
+    	GLOBAL_SCHEDULER->next();
+    	GLOBAL_SCHEDULER->shutdown();
     }
 
     GLOBAL_SCHEDULER = newScheduler;
